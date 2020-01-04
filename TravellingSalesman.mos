@@ -1,0 +1,348 @@
+model ModelName
+uses "mmxprs"; !gain access to the Xpress-Optimizer solver
+uses "mmsystem" ! include package to operating systems
+
+
+
+N := 48  ! number of cities
+
+declarations
+	Cities = 1 .. N                         	! set of cities
+	coord: array(Cities,1..3) of real			! array of coordinates of cities, to be read from US48.dat
+	dist: array(Cities,Cities) of real  		! distance between each pair of cities
+	x : array(Cities,Cities) of mpvar       	! decision variables
+	flag : integer                          	! flag=0: not optimal yet; flag=1: optimal
+	ind : range                             	! dynamic range
+	numSubtour : integer                    	! number of generated subtours
+	numSubtourCities : integer					! number of cities on a generated subtour
+	SubtourCities : array(Cities) of integer	! SubtourCities(i)=1 means city i is on the subtour
+	subtourCtr : dynamic array(ind) of linctr   ! dynamic array of subtour elimination constraints
+	i1: integer
+	j1: integer
+	current_index: integer
+	next_index: integer
+	k: real
+	Next_City_array: array(Cities) of integer
+	subtour_city_list: set of integer
+	total_subtour_city_list: set of integer
+end-declarations
+
+! initialization part is given
+initializations from "US48.dat"
+     coord
+end-initializations
+
+
+! compute dist(i,j) the distance between each pair of cities using (x,y) coordinates of the cities, which are in the array coord
+! you may need square root function sqrt()
+!!!!!!!!!!!!!!! fill in your code here !!!!!!!!!!!!!!!!!!!!
+
+forall(i,j in Cities,Cities) do
+		dist(i,j) := sqrt((coord(i,2) - coord(j,2))^2 +  (coord(i,3) - coord(j,3))^2)
+	end-do
+
+
+writeln("Distance",dist(45,15))
+
+!!!!!!!!!!!!! objective: total distance of a tour
+!!!!!!!!! fill in your code here !!!!!!!!!!!!!!!
+
+
+TotalDist := sum(i, j in Cities) dist(i,j)*x(i,j)
+
+writeln(getsol(TotalDist))
+
+!!!!!!!!!! write constraint: x(i,j) is binary !!!!!!!!!!!!!!!!
+!!!!!!!!! fill in your code here !!!!!!!!!!!!!!!
+
+forall(i,j in Cities,Cities) do
+		x(i,j) is_binary
+	end-do
+
+
+!!!!!!!!!!! write assignment constraints: in and out constraints for each city !!!!!!!!!!!!!!!!!!!
+!!!!!!!!! fill in your code here !!!!!!!!!!!!!!!
+
+forall(j in Cities)
+    sum(i in Cities)  x(i,j) = 1
+
+forall(i in Cities)
+    sum(j in Cities)  x(i,j) = 1
+
+
+
+
+!!!!!!!!!! write 1-city subtour elimination constraints here !!!!!!!!!!!!!!!!!
+!!!!!!!!! fill in your code here !!!!!!!!!!!!!!!
+
+forall(i in Cities) do
+	x(i,i) = 0
+
+end-do
+
+!!!!!!!!!! write 2-city subtour elimination constraints here !!!!!!!!!!!!!!!!!!!
+!!!!!!!! fill in your code here !!!!!!!!!!!!!!!
+
+forall(i,j in Cities) do
+
+		x(i,j) + x(j,i) <= 1
+
+end-do
+
+
+
+! !!!!!!!!!! write 3-city subtour elimination constraints here !!!!!!!!!!!!!!
+! !!!!!!!!! fill in your code here !!!!!!!!!!!!!!!
+
+! forall(i,j,k in Cities)
+! 	x(i,j) + x(j,k) + x(k,i) <=2
+
+
+
+
+! !!!!!!!!!! write 4-city subtour elimination constraints here !!!!!!!!!!!!!!
+! !!!!!!!!! fill in your code here !!!!!!!!!!!!!!!
+
+
+
+
+! forall(i,j,k,l in Cities)
+! 	x(i,j) + x(j,k) + x(k,l) + x(l,i) <=3
+
+
+
+minimize(getsol(TotalDist))
+
+
+
+!!!!!!!!!!!!! constraint generation algorithm !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+numSubtour := 0   ! number of added subtour elimination constraints is zero
+flag := 0 ! initalize flag to be 0, so no optimal solution has been found yet
+
+repeat
+
+	!!!!!!!!!!!!!!! Solve the restricted master problem  !!!!!!!!!!!
+	minimize(TotalDist)
+
+
+
+	! Output the solution of the restricted master problem
+	writeln("the restricted master problem is solved:")
+	forall (i in Cities, j in Cities) do
+		if abs(getsol(x(i,j))-1)<0.1 then
+		! note here we could have simply written "if getsol(x(i,j))=1 then",
+		! but I found cases where Xpress doesn't output all such x(i,j)'s.
+		! So this is a quick and ugly fix.
+		! You can use this trick in the later part when you need to check if x(i,j) is 1 or not
+		! Also, feel free to develop your own solution
+			writeln("x(",i,",",j,")=",getsol(x(i,j)))
+		end-if
+	end-do
+
+	!!!!!!!!!!!!!!!!!!!!!  find a subtour !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	! We want to find a subtour starting at city 1 (Atlanta) and ending at City 1 (such a subtour always exists!)
+	! First, initialize a few things:
+	numSubtourCities := 0    ! the number of cities on the subtour
+	forall (i in Cities) do  ! SubtourCities(i)=1 if city i is on the subtour, initialize all entries to zero
+		SubtourCities(i):=0  ! need to change entries when city i is found on the tour
+	end-do
+
+	forall (i in Cities) do  ! SubtourCities(i)=1 if city i is on the subtour, initialize all entries to zero
+		Next_City_array(i):=0  ! need to change entries when city i is found on the tour
+	end-do
+
+	subtourCities(1) := 1  ! City 1 (Atlanta) is always on the subtour
+	writeln("init-subtourCities",subtourCities)
+	! Start the procedure to look for a subtour starting and ending at City 1. The basic algorithm is discussed in the hand-out
+	! Note you need to update SubtourCities for cities that are on the subtour
+	! You also need to keep track of the number of cities numSubtourCities on the subtour
+	!!!!!!!!! fill in your code here !!!!!!!!!!!!!!!
+
+	current_index := 1
+
+	i1 := 2
+
+	repeat
+
+		j1 := 1
+
+		! repeat
+		! 	writeln("j1 value",getsol(j1))
+		! 	k := getsol(x(current_index,j1))
+		! 	j1 := j1+1
+
+		! until k = 1
+
+		forall( j in Cities ) do
+
+
+			if(1-getsol(x(current_index, j))  < 0.001) then
+				writeln("entered loop ", current_index, " ",j)
+				next_index := j
+			end-if
+
+			! writeln(current_index,"  j = 15 sol",getsol(x(current_index,j)))
+
+
+
+		end-do
+		! if (current_index = next_index) then
+		! 		forall (i2 in Cities, j2 in Cities) do
+		! 			if abs(getsol(x(i2,j2))-1)<0.1 then
+
+		! 				writeln("x(",i2,",",j2,")=",getsol(x(i2,j2)))
+		! 			end-if
+		! 		end-do
+
+		! 	end-if
+
+
+		!next_index := j1 -1
+
+
+		SubtourCities(next_index) := 1
+
+
+		current_index := next_index
+
+
+
+
+		i1 := i1 + 1
+
+
+
+		numSubtourCities += 1
+
+
+
+
+	until current_index = 1
+
+	forall (i , j in Cities) do
+    	if abs(getsol(x(i,j))-1)<0.1 then
+        	Next_City_array(i):= j
+    	end-if
+    end-do
+
+	writeln("subtourCities",SubtourCities)
+
+	subtour_city_list := {}
+	total_subtour_city_list:= {}
+	i1 := 1
+	repeat
+		subtour_city_list+={i1}
+		total_subtour_city_list +={i1}
+        i1:=Next_City_array(i1)
+	until i1 = 1
+
+
+
+	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	! output the subtour you found
+	writeln("\nFound a tour of distance ", getobjval, " and ", numSubtourCities, " cities")
+	writeln("Cities on the subtour are:")
+	forall (i in Cities | SubtourCities(i)=1) do
+	! Note: forall ( ... | express ) is very useful, you may need to use it in the following part to add subtour elimination constraints
+		write(i, " ")
+	end-do
+
+
+
+	!!!!!!!!!!!!!!!!!!!! add the subtour elimination constraint !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	! If the subtour found above is indeed a subtour (i.e. has fewer than 48 cities), then add the corresponding subtour elimination constraint to the problem
+	! otherwise, if the subtour has 48 cities, then it's a TSP tour and optimal, terminate the constraint generation by setting the flag to 1
+	!!!!!! fill in you code !!!!!!!!!!
+
+
+
+	if( numSubtourCities = 48) then
+	        flag := 1
+
+	elif( numSubtourCities < 48) then
+		numSubtour+=1
+		create(subtourCtr(numSubtour))
+
+		writeln("subtour list",subtour_city_list)
+		subtourCtr(numSubtour):= sum(k1 in subtour_city_list) x(k1,Next_City_array(k1)) <= getsize(subtour_city_list) -1
+		writeln("constraint1",subtourCtr)
+		writeln("Generate constranits that makes all other subtours infeasible :")
+		forall (i in Cities) do
+				if SubtourCities(i)=0 then
+		    		if (i not in total_subtour_city_list) then
+		    			subtour_city_list:={}
+		    			current_index :=i
+
+		    			writeln("i", i)
+		    			writeln("current_index", current_index)
+		    			repeat
+							! writeln("next array", Next_City_array)
+
+							 next_index := Next_City_array(current_index)
+
+
+		        			 !writeln("Current city", current_index)
+		        			 !writeln("Next city", Next_City_array(current_index) )
+		        			current_index:=next_index
+		        			subtour_city_list+={current_index}
+		    			until current_index=i
+		    			numSubtour+=1
+		    			create(subtourCtr(numSubtour))
+		    			writeln("subtour_city_list constraint 1 ", subtour_city_list)
+						subtourCtr(numSubtour):= sum(k1 in subtour_city_list) x(k1,Next_City_array(k1)) <= getsize(subtour_city_list) -1
+		    			total_subtour_city_list += subtour_city_list
+		    			! writeln( "Constraints generated : ", numSubtour)
+		    			! writeln("Total subtour_city_list"," ",total_subtour_city_list)
+		    			writeln("subtour Size : ", getsize(subtour_city_list), "  All subtour Size : ", getsize(total_subtour_city_list), "  constraints generated : ", numSubtour)
+
+		    		end-if
+	    		end-if
+	    	end-do
+
+
+	    	numSubtour += 1
+			create(subtourCtr(numSubtour))
+			subtourCtr(numSubtour):= sum (i in Cities | SubtourCities(i)=1, j in Cities | SubtourCities(j)=0 ) x(i, j) >= 1
+			writeln( "Constraints generated : ", numSubtour)
+
+
+
+
+
+	end-if
+
+
+
+
+
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+until flag = 1
+
+!!!!!!!!!!!!!!!!!!!! end of the constraint generation algorithm !!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+
+	writeln("\nOptimal TSP distance = ", getobjval)
+	forall (i in Cities, j in Cities) do
+		if abs(getsol(x(i,j))-1)<0.1 then
+			writeln("x(",i,",",j,")=",getsol(x(i,j)))
+		end-if
+	end-do
+
+
+	! write the solution to an output file
+	! then run matlab code US48TourPlot.m to plot the tour
+	fopen("US48.output",F_OUTPUT)
+	forall (i in Cities, j in Cities) do
+		if abs(getsol(x(i,j))-1)<0.1 then
+			writeln(i,"\t",j)
+		end-if
+	end-do
+	fclose(F_OUTPUT)
+writeln("End running model")
+
+
+end-model
